@@ -1,75 +1,51 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import requests
-from datetime import datetime
+import yfinance as yf
 
-# Configuração da Página
-st.set_page_config(page_title="RASTREADOR MACRO - VANDO MUNIZ", layout="wide")
-st.markdown("<style>body {background-color: #000000; color: white;}</style>", unsafe_allow_html=True)
-
-# Título Profissional
-st.title("📊 RASTREADOR MÉTODO MACRO | VANDO MUNIZ")
-
-# Chave e Ativos (Ajustados para a lógica do Elton)
-API_KEY = "SUA_CHAVE_AQUI"
-# SPY representa o Otimismo (Linha Vermelha) | UUP representa o Pessimismo (Linha Verde)
-symbols = "SPY,UUP"
+# Configuração da página para o estilo Trader
+st.set_page_config(page_title="Radar Macro Vando", layout="wide")
 
 def buscar_dados():
-    url = f"https://api.twelvedata.com/quote?symbol={symbols}&apikey={API_KEY}"
-    res = requests.get(url).json()
-    # No seu setup: Vermelha = Otimismo (Bolsas), Verde = Pessimismo (Dólar Global)
-    otimismo = float(res['SPY']['percent_change'])
-    pessimismo = float(res['UUP']['percent_change'])
-    return otimismo, pessimismo
+    tickers = {'SPY': 'S&P 500', 'DI=F': 'DI Futuro', 'DX-Y.NYB': 'DXY'}
+    dados = {}
+    for t in tickers:
+        try:
+            ticker = yf.Ticker(t)
+            hist = ticker.history(period="2d")
+            if not hist.empty:
+                fech_atual = hist['Close'].iloc[-1]
+                fech_ant = hist['Close'].iloc[-2]
+                pct = ((fech_atual - fech_ant) / fech_ant) * 100
+                dados[t] = pct
+            else:
+                dados[t] = 0.0
+        except:
+            dados[t] = 0.0
+    return dados
 
-# Inicializando histórico no estado da sessão do navegador
-if 'historico' not in st.session_state:
-    st.session_state.historico = pd.DataFrame(columns=['Otimismo', 'Pessimismo', 'Gatilho', 'Neutro'])
+st.title("RASTREADOR MÉTODO MACRO | VANDO MUNIZ")
 
-# Busca de dados
-otim, pess = buscar_dados()
-gatilho = otim - pess
-novo_dado = {'Otimismo': otim, 'Pessimismo': pess, 'Gatilho': gatilho, 'Neutro': 0}
-st.session_state.historico = pd.concat([st.session_state.historico, pd.DataFrame([novo_dado])]).tail(50)
+precos = buscar_dados()
 
-# --- CRIAÇÃO DO GRÁFICO PROFISSIONAL ---
+# Criando o gráfico com linhas GROSSAS e NEON
 fig = go.Figure()
 
-# Linha Vermelha (Otimismo/Bolsas) - Grossa
-fig.add_trace(go.Scatter(y=st.session_state.historico['Otimismo'], name='OTIMISMO (BOLSAS)',
-                         line=dict(color='#FF0000', width=5)))
+# Exemplo de linha para o radar
+fig.add_trace(go.Scatter(
+    x=['DXY', 'S&P 500', 'DI'], 
+    y=[precos.get('DX-Y.NYB', 0), precos.get('SPY', 0), precos.get('DI=F', 0)],
+    mode='lines+markers+text',
+    line=dict(color='lime', width=6), # LINHA BEM GROSSA
+    marker=dict(size=12, color='white'),
+    textposition="top center"
+))
 
-# Linha Verde (Pessimismo) - Grossa
-fig.add_trace(go.Scatter(y=st.session_state.historico['Pessimismo'], name='PESSIMISMO (MEDO)',
-                         line=dict(color='#00FF00', width=5)))
-
-# Linha Cinza (Neutro) - Tracejada
-fig.add_trace(go.Scatter(y=st.session_state.historico['Neutro'], name='NEUTRO',
-                         line=dict(color='#808080', width=2, dash='dash')))
-
-# Linha Azul (Gatilho/Pressão) - Tracejada
-fig.add_trace(go.Scatter(y=st.session_state.historico['Gatilho'], name='GATILHO AZUL (PRESSÃO)',
-                         line=dict(color='#00D9FF', width=3, dash='dot')))
-
-# Ajustes de Layout (Estilo Dark Terminal)
 fig.update_layout(
-    plot_bgcolor='black', paper_bgcolor='black',
-    font_color='white', height=600,
-    xaxis=dict(showgrid=False),
-    yaxis=dict(gridcolor='#222222', zeroline=False),
-    margin=dict(l=20, r=20, t=20, b=20)
+    template="plotly_dark",
+    plot_bgcolor='black',
+    paper_bgcolor='black',
+    height=600
 )
 
 st.plotly_chart(fig, use_container_width=True)
-
-# Painel de Decisão
-st.markdown("---")
-col1, col2 = st.columns(2)
-if otim > pess:
-    col1.error(f"🚨 SENTIDO: VENDA DÓLAR (Otimismo no Topo)")
-else:
-    col1.success(f"🚨 SENTIDO: COMPRA DÓLAR (Pessimismo no Topo)")
-
-col2.info(f"⏱️ ÚLTIMA ATUALIZAÇÃO: {datetime.now().strftime('%H:%M:%S')}")
