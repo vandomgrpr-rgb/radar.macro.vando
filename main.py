@@ -3,7 +3,7 @@ import yfinance as yf
 import os
 
 # ATENÇÃO: Os dois sublinhados antes e depois de name são OBRIGATÓRIOS
-app = Flask(_name_)
+app = Flask(__name__)
 
 def calcular_rastro_vando():
     try:
@@ -54,6 +54,7 @@ if _name_ == "_main_":
     # O Render exige que a gente pegue a porta do sistema
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
