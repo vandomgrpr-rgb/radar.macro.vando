@@ -1,7 +1,8 @@
 from flask import Flask
 import yfinance as yf
+import os
 
-app = Flask(_name_)
+app = Flask(_name) # Corrigido aqui: __name_ com dois sublinhados
 
 def calcular_rastro():
     try:
@@ -10,7 +11,7 @@ def calcular_rastro():
         data = yf.download(tickers, period="1d", interval="5m", progress=False)['Close']
         
         if data.empty:
-            return "Aguardando sinal do mercado..."
+            return None
 
         atual = data.iloc[-1]
         abertura = data.iloc[0]
@@ -36,28 +37,27 @@ def calcular_rastro():
 def home():
     res = calcular_rastro()
     if not res:
-        return "<h1>Erro na leitura dos dados. Tentando reconectar...</h1>"
+        return "<body style='background:black;color:white;'><h1>Carregando dados do mercado...</h1><script>setTimeout(function(){location.reload();}, 5000);</script></body>"
     
-    # Define a cor baseada no Score
     cor = "green" if res['score'] > 0 else "red"
     
-    # HTML simples para aparecer na TV
     return f"""
     <body style="background-color: black; color: white; font-family: sans-serif; text-align: center; padding-top: 50px;">
-        <h1 style="font-size: 60px;">RASTRO DO MERCADO</h1>
-        <div style="font-size: 120px; color: {cor}; font-weight: bold;">{res['score']}</div>
-        <hr style="width: 50%; margin: 40px auto;">
-        <div style="font-size: 30px;">
-            <p>IBOVESPA: {res['ibov']}%</p>
-            <p>DÓLAR: {res['dolar']}%</p>
-            <p>PETRÓLEO: {res['pet']}%</p>
+        <h1 style="font-size: 40px;">RASTRO DO MERCADO</h1>
+        <div style="font-size: 100px; color: {cor}; font-weight: bold;">{res['score']}%</div>
+        <hr style="width: 50%; margin: 30px auto;">
+        <div style="font-size: 25px;">
+            <p>IBOVESPA: {res['ibov']}% | DÓLAR: {res['dolar']}%</p>
+            <p>PETRÓLEO BRENT: {res['pet']}%</p>
         </div>
+        <p style="color: gray;">Atualiza sozinho a cada 2 min</p>
         <script>setTimeout(function(){{ location.reload(); }}, 120000);</script>
     </body>
     """
 
 if _name_ == "_main_":
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
 
 
 
