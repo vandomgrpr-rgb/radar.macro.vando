@@ -1,60 +1,69 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-import yfinance as yf
+import time
 
-# Configuração da página para o estilo Trader profissional
-st.set_page_config(page_title="Radar Macro Vando", layout="wide")
+st.set_page_config(layout="wide", page_title="Radar de Pressão Vando")
 
-def buscar_dados():
-    # Tickers públicos e gratuitos do Yahoo Finance
-    tickers = {'SPY': 'S&P 500', 'DX-Y.NYB': 'DXY', 'DI=F': 'DI Futuro'}
-    dados = {}
-    for t in tickers:
-        try:
-            ticker = yf.Ticker(t)
-            hist = ticker.history(period="2d")
-            if not hist.empty and len(hist) >= 2:
-                fech_atual = hist['Close'].iloc[-1]
-                fech_ant = hist['Close'].iloc[-2]
-                pct = ((fech_atual - fech_ant) / fech_ant) * 100
-                dados[t] = pct
-            else:
-                dados[t] = 0.0
-        except Exception:
-            dados[t] = 0.0 # Se falhar, coloca 0 em vez de dar erro vermelho
-    return dados
+st.markdown("""
+    <style>
+    .main { background-color: #000000; }
+    header {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
 
-st.title("RASTREADOR MÉTODO MACRO | VANDO MUNIZ")
+def buscar_pressao_noticia():
+    try:
+        data = yf.download('^GSPC', period="1d", interval="1m", progress=False)
+        if not data.empty:
+            abertura = data['Open'].iloc[0]
+            serie_rastro = ((data['Close'] - abertura) / abertura) * 100
+            valor_atual = serie_rastro.iloc[-1]
+            return serie_rastro, valor_atual
+    except:
+        pass
+    return pd.Series(), 0
 
-precos = buscar_dados()
+rastro, pressao = buscar_pressao_noticia()
 
-# Criando o gráfico com as LINHAS GROSSAS que você queria
-fig = go.Figure()
+if not rastro.empty:
+    fig = go.Figure()
 
-# Montando o visual do radar
-indices = ['S&P 500', 'DXY', 'DI Futuro']
-valores = [precos.get('SPY', 0), precos.get('DX-Y.NYB', 0), precos.get('DI=F', 0)]
+    # LÓGICA DINÂMICA: As linhas se excitam com a pressão
+    pos_vermelha = 0.80 if pressao > 0.15 else 0.45
+    pos_verde = -0.80 if pressao < -0.15 else -0.45
 
-fig.add_trace(go.Scatter(
-    x=indices, 
-    y=valores,
-    mode='lines+markers+text',
-    line=dict(color='lime', width=8), # LINHA SUPER GROSSA E NEON
-    marker=dict(size=15, color='white'),
-    text=[f"{v:.2f}%" for v in valores],
-    textposition="top center"
-))
+    # 1. LINHA CINZA TRACEJADA (NEUTRA)
+    fig.add_hline(y=0, line_dash="dash", line_color="grey", line_width=2, 
+                 annotation_text="NEUTRO: SEM DIREÇÃO", annotation_position="top left")
 
-fig.update_layout(
-    template="plotly_dark",
-    plot_bgcolor='black',
-    paper_bgcolor='black',
-    height=600,
-    yaxis=dict(title="Variação %", gridcolor='gray'),
-    xaxis=dict(gridcolor='gray')
-)
+    # 2. LINHA VERMELHA (OTIMISMO / PRESSÃO DE ALTA)
+    fig.add_hline(y=pos_vermelha, line_color="red", line_width=4, 
+                 annotation_text="OTIMISMO: PRESSÃO DE VENDA NO DÓLAR", annotation_position="top right")
 
-st.plotly_chart(fig, use_container_width=True)
+    # 3. LINHA VERDE (PESSIMISMO / PRESSÃO DE BAIXA)
+    fig.add_hline(y=pos_verde, line_color="green", line_width=4, 
+                 annotation_text="PESSIMISMO: PRESSÃO DE COMPRA NO DÓLAR", annotation_position="bottom right")
+
+    # 4. O RASTRO AZUL (TENDÊNCIA QUE BUSCA A PRESSÃO)
+    fig.add_trace(go.Scatter(x=rastro.index, y=rastro, 
+                             name="Rastro de Tendência", 
+                             line=dict(color='deepskyblue', width=6, dash='dash')))
+
+    fig.update_layout(
+        title=f"RADAR VANDO - PRESSÃO ATUAL: {pressao:+.3f}%",
+        template="plotly_dark",
+        yaxis=dict(range=[-1.2, 1.2], gridcolor='#222'),
+        height=700,
+        margin=dict(l=20, r=20, t=60, b=20)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+time.sleep(60)
+st.rerun()
+
+
+
 
 
