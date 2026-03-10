@@ -8,7 +8,7 @@ def calcular_rastro():
     try:
         # Puxando Ibovespa, Dólar, S&P 500 Futuro e Petróleo Brent
         tickers = ["^BVSP", "BRL=X", "ES=F", "BZ=F"]
-        data = yf.download(tickers, period="1d", interval="5m", progress=False)['Close']
+        data = yf.download(tickers, period="2d", interval="5m", progress=False)['Close']
         
         if data.empty:
             return None
@@ -63,6 +63,7 @@ def home():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
