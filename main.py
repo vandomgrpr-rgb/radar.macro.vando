@@ -4,63 +4,72 @@ import pandas as pd
 import plotly.graph_objects as go
 import time
 
-st.set_page_config(layout="wide", page_title="Radar de Pressão Vando")
+# Configuração de página
+st.set_page_config(layout="wide", page_title="Radar Vando Muniz")
 
-st.markdown("""
-    <style>
-    .main { background-color: #000000; }
-    header {visibility: hidden;}
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown("<style>.main {background-color: #000000;}</style>", unsafe_allow_html=True)
 
-def buscar_pressao_noticia():
+def buscar_dados():
     try:
-        data = yf.download('^GSPC', period="1d", interval="1m", progress=False)
-        if not data.empty:
-            abertura = data['Open'].iloc[0]
-            serie_rastro = ((data['Close'] - abertura) / abertura) * 100
-            valor_atual = serie_rastro.iloc[-1]
-            return serie_rastro, valor_atual
+        # Puxamos o S&P 500 para medir o sentimento global
+        df = yf.download('^GSPC', period="1d", interval="1m", progress=False)
+        if not df.empty:
+            abertura = df['Open'].iloc[0]
+            # Calculamos o rastro
+            rastro_serie = ((df['Close'] - abertura) / abertura) * 100
+            # Pegamos o ÚLTIMO valor real (garante que seja um número único)
+            valor_atual = float(rastro_serie.iloc[-1])
+            return rastro_serie, valor_atual
     except:
         pass
-    return pd.Series(), 0
+    return pd.Series(), 0.0
 
-rastro, pressao = buscar_pressao_noticia()
+rastro, pressao = buscar_dados()
+
+st.title("RASTREADOR MÉTODO MACRO | VANDO MUNIZ")
 
 if not rastro.empty:
     fig = go.Figure()
 
-    # LÓGICA DINÂMICA: As linhas se excitam com a pressão
-    pos_vermelha = 0.80 if pressao > 0.15 else 0.45
-    pos_verde = -0.80 if pressao < -0.15 else -0.45
+    # --- LÓGICA DE POSIÇÃO DINÂMICA (TROCA DE LUGAR) ---
+    # Se mercado cai (Pessimismo), Verde vai para o TOPO (Compra Dólar)
+    if pressao < -0.05:
+        pos_verde, pos_cinza, pos_vermelha = 1.0, 0.5, 0.0
+        msg = "PESSIMISMO: COMPRA DÓLAR"
+    # Se mercado sobe (Otimismo), Vermelha vai para o TOPO (Venda Dólar)
+    elif pressao > 0.05:
+        pos_vermelha, pos_cinza, pos_verde = 1.0, 0.5, 0.0
+        msg = "OTIMISMO: VENDA DÓLAR"
+    else:
+        pos_cinza, pos_vermelha, pos_verde = 1.0, 0.5, 0.0
+        msg = "NEUTRO: SEM LADO"
 
-    # 1. LINHA CINZA TRACEJADA (NEUTRA)
-    fig.add_hline(y=0, line_dash="dash", line_color="grey", line_width=2, 
-                 annotation_text="NEUTRO: SEM DIREÇÃO", annotation_position="top left")
+    # 1. LINHA VERMELHA
+    fig.add_hline(y=pos_vermelha, line_color="red", line_width=6, 
+                 annotation_text="VENDA DÓLAR", annotation_position="top right")
 
-    # 2. LINHA VERMELHA (OTIMISMO / PRESSÃO DE ALTA)
-    fig.add_hline(y=pos_vermelha, line_color="red", line_width=4, 
-                 annotation_text="OTIMISMO: PRESSÃO DE VENDA NO DÓLAR", annotation_position="top right")
+    # 2. LINHA VERDE
+    fig.add_hline(y=pos_verde, line_color="green", line_width=6, 
+                 annotation_text="COMPRA DÓLAR", annotation_position="bottom right")
 
-    # 3. LINHA VERDE (PESSIMISMO / PRESSÃO DE BAIXA)
-    fig.add_hline(y=pos_verde, line_color="green", line_width=4, 
-                 annotation_text="PESSIMISMO: PRESSÃO DE COMPRA NO DÓLAR", annotation_position="bottom right")
+    # 3. LINHA CINZA (NEUTRA)
+    fig.add_hline(y=pos_cinza, line_dash="dash", line_color="grey", line_width=2)
 
-    # 4. O RASTRO AZUL (TENDÊNCIA QUE BUSCA A PRESSÃO)
-    fig.add_trace(go.Scatter(x=rastro.index, y=rastro, 
-                             name="Rastro de Tendência", 
-                             line=dict(color='deepskyblue', width=6, dash='dash')))
+    # 4. O RASTRO AZUL (MOVE-SE CONFORME O PREÇO)
+    fig.add_trace(go.Scatter(y=rastro.values, mode='lines',
+                             line=dict(color='deepskyblue', width=8, dash='dash'),
+                             name="Tendência Real"))
 
     fig.update_layout(
-        title=f"RADAR VANDO - PRESSÃO ATUAL: {pressao:+.3f}%",
-        template="plotly_dark",
-        yaxis=dict(range=[-1.2, 1.2], gridcolor='#222'),
-        height=700,
-        margin=dict(l=20, r=20, t=60, b=20)
+        title=f"SENTIMENTO: {msg} ({pressao:+.3f}%)",
+        template="plotly_dark", plot_bgcolor='black', paper_bgcolor='black',
+        yaxis=dict(range=[-0.5, 1.5], showticklabels=False, gridcolor='#222'),
+        height=700
     )
     st.plotly_chart(fig, use_container_width=True)
 
-time.sleep(60)
+# Atualiza a cada 30 segundos
+time.sleep(30)
 st.rerun()
 
 
