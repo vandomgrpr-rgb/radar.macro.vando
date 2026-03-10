@@ -2,7 +2,7 @@ from flask import Flask
 import yfinance as yf
 import os
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 def calcular_rastro():
     try:
@@ -68,10 +68,11 @@ def home():
     </body>
     """
 
-if _name_ == "_main_":
+if__name__=="__main__":
     # O Render exige o uso da variável de ambiente PORT
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
