@@ -56,13 +56,14 @@ def home():
         </div>
         
         <p style="color: #444; margin-top: 40px;">Atualização automática: 2 min</p>
-        <script>setTimeout(function(){{ location.reload(); }}, 120000);</script>
+        <script>setTimeout(function(){{ location.reload(); }}, 300000);</script>
     </body>
     """
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
