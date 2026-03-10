@@ -4,3 +4,4 @@ plotly
 yfinance
 pytz
 gunicorn
+requests
