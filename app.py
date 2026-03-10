@@ -12,7 +12,7 @@ import time
 warnings.filterwarnings("ignore")
 
 # CONFIGURAÇÃO - COLE SUA CHAVE AQUI
-ALPHA_VANTAGE_API_KEY = "SUA_CHAVE_AQUI"  # ← SUBSTITUA
+ALPHA_VANTAGE_API_KEY = "JBIJLOP76X2DOLBQ"  # ← SUBSTITUA
 
 # CACHE GLOBAL
 CACHE = {
@@ -279,6 +279,7 @@ def update_graph(n):
 
 if __name__ == '__main__':
     app.run_server(debug=False, host='0.0.0.0', port=8050)
+
 
 
 
