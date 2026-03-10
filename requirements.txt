@@ -1,6 +1,6 @@
-streamlit
+dash
 pandas
 plotly
 yfinance
-flask
-
+pytz
+gunicorn
