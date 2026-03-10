@@ -1,7 +1,6 @@
 dash
-pandas
 plotly
 yfinance
-pytz
+pandas
 gunicorn
 requests
