@@ -21,7 +21,7 @@ def calcular_rastro():
         v_sp = ((atual['ES=F'] / abertura['ES=F']) - 1) * 100
         v_pet = ((atual['BZ=F'] / abertura['BZ=F']) - 1) * 100
 
-        # PESOS DO VANDO (Radar 12)
+        # PESOS DO VANDO (Radar 17)
         score = (v_ibov * 0.6) - (v_dolar * 0.4) + (v_sp * 0.1) - (v_pet * 0.1)
         
         return {
@@ -55,7 +55,7 @@ def home():
             <p>PETRÓLEO BRENT: <b>{res['pet']}%</b></p>
         </div>
         
-        <p style="color: #444; margin-top: 40px;">Atualização automática: 2 min</p>
+        <p style="color: #444; margin-top: 40px;">Atualização automática: 5 min</p>
         <script>setTimeout(function(){{ location.reload(); }}, 300000);</script>
     </body>
     """
@@ -63,6 +63,7 @@ def home():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
