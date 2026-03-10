@@ -12,7 +12,7 @@ import time
 warnings.filterwarnings("ignore")
 
 # CONFIGURAÇÃO - COLE SUA CHAVE AQUI
-ALPHA_VANTAGE_API_KEY = "JBIJLOP76X2DOLBQ"  # ← SUBSTITUA
+ALPHA_VANTAGE_API_KEY = "SUA_CHAVE_AQUI"  # ← SUBSTITUA
 
 # CACHE GLOBAL
 CACHE = {
@@ -33,12 +33,11 @@ TICKERS_YAHOO = {
     'MXN': 'MXN=X'
 }
 
-# Mapeamento para Alpha Vantage (símbolos diferentes)
 TICKERS_ALPHA = {
-    'IBOV': 'IBOV.SAO',      # Ibovespa
-    'SP500': 'SPY',          # ETF do S&P500 (mais líquido)
-    'DOLAR': 'BRLUSD',       # USD/BRL
-    'MXN': 'MXNUSD'          # USD/MXN
+    'IBOV': 'IBOV.SAO',
+    'SP500': 'SPY',
+    'DOLAR': 'BRLUSD',
+    'MXN': 'MXNUSD'
 }
 
 app.layout = html.Div([
@@ -77,10 +76,9 @@ app.layout = html.Div([
         style={'height': '70vh'}
     ),
     
-    # Intervalo: 10 minutos (economiza requisições)
     dcc.Interval(
         id='interval-component',
-        interval=600*1000,  # 10 minutos
+        interval=600*1000,
         n_intervals=0
     )
 ], style={
@@ -89,17 +87,21 @@ app.layout = html.Div([
     'padding': '20px'
 })
 
+def ajustar_horario_brasilia(df):
+    """Converte índice UTC para horário de Brasília (UTC-3)"""
+    if df is not None and not df.empty:
+        # Subtrai 3 horas do índice
+        df.index = df.index - timedelta(hours=3)
+    return df
+
 def fetch_alpha_vantage():
-    """Busca dados da Alpha Vantage (usa apenas se Yahoo falhar)"""
     global CACHE
     
-    # Verifica limite diário
     hoje = datetime.now(timezone.utc).date()
     if CACHE['ultima_req_alpha'] and CACHE['ultima_req_alpha'].date() == hoje:
         if CACHE['alpha_count'] >= 25:
             return None, "Limite Alpha Vantage atingido (25/dia)"
     else:
-        # Novo dia, reseta contador
         CACHE['alpha_count'] = 0
         CACHE['ultima_req_alpha'] = datetime.now(timezone.utc)
     
@@ -131,16 +133,17 @@ def fetch_alpha_vantage():
                     data_frames[nome] = df['Variacao']
                 
                 CACHE['alpha_count'] += 1
-                time.sleep(0.5)  # Respeita rate limit
+                time.sleep(0.5)
             
             elif "Note" in data:
                 return None, f"Limite API atingido: {data['Note']}"
             elif "Information" in data:
                 return None, f"Erro API: {data['Information']}"
                 
-        if len(data_frames) >= 2:  # Pelo menos 2 tickers
+        if len(data_frames) >= 2:
             df_final = pd.DataFrame(data_frames).dropna()
             if not df_final.empty:
+                df_final = ajustar_horario_brasilia(df_final)
                 return process_data(df_final), "ALPHA VANTAGE"
         
         return None, "Dados insuficientes Alpha Vantage"
@@ -149,12 +152,11 @@ def fetch_alpha_vantage():
         return None, f"Erro Alpha Vantage: {str(e)}"
 
 def fetch_yahoo():
-    """Busca dados do Yahoo Finance"""
     data_frames = {}
     
     try:
         for nome, ticker in TICKERS_YAHOO.items():
-            time.sleep(0.3)  # Delay para não sobrecarregar
+            time.sleep(0.3)
             df = yf.download(ticker, period='1d', interval='5m', progress=False)
             
             if not df.empty and len(df) > 0:
@@ -165,6 +167,8 @@ def fetch_yahoo():
         if len(data_frames) >= 4:
             df_final = pd.DataFrame(data_frames).dropna()
             if not df_final.empty:
+                # 🕐 CONVERTE PARA HORÁRIO DE BRASÍLIA
+                df_final = ajustar_horario_brasilia(df_final)
                 return process_data(df_final), "YAHOO FINANCE"
         
         return None, "Yahoo incompleto"
@@ -173,7 +177,6 @@ def fetch_yahoo():
         return None, f"Yahoo erro: {str(e)}"
 
 def process_data(df):
-    """Processa DataFrame com as linhas do método"""
     df['VERDE'] = (df['IBOV'] + df['SP500']) / 2
     df['VERMELHA'] = (df['DOLAR'] + df['MXN']) / 2
     df['RASTRO_AZUL'] = df['VERDE'] - df['VERMELHA']
@@ -181,10 +184,8 @@ def process_data(df):
     return df
 
 def fetch_data():
-    """Estratégia híbrida: Yahoo primeiro, Alpha como backup"""
     global CACHE
     
-    # 1. Tenta Yahoo Finance (gratuito)
     df, fonte = fetch_yahoo()
     
     if df is not None:
@@ -193,7 +194,6 @@ def fetch_data():
         CACHE['yahoo_falhou'] = False
         return df, f"ONLINE • {fonte}", "#00ff00"
     
-    # 2. Yahoo falhou, tenta Alpha Vantage (25 req/dia)
     if not CACHE['yahoo_falhou']:
         print("Yahoo falhou, tentando Alpha Vantage...")
         CACHE['yahoo_falhou'] = True
@@ -205,7 +205,6 @@ def fetch_data():
         CACHE['ultimo_sucesso'] = datetime.now(timezone.utc)
         return df, f"ONLINE • {fonte} ({CACHE['alpha_count']}/25)", "#00ff00"
     
-    # 3. Ambos falharam, usa cache
     if CACHE['df'] is not None:
         minutos = (datetime.now(timezone.utc) - CACHE['ultimo_sucesso']).seconds // 60
         return CACHE['df'], f"OFFLINE • Cache ({minutos}min) • Alpha usada: {CACHE['alpha_count']}/25", "#ffaa00"
@@ -224,7 +223,6 @@ def fetch_data():
 def update_graph(n):
     df_final, status_msg, status_color = fetch_data()
     
-    # Hora de Brasília
     agora_utc = datetime.now(timezone.utc)
     agora_brasilia = agora_utc - timedelta(hours=3)
     hora_str = f"Atualizado: {agora_brasilia.strftime('%H:%M:%S')} (Brasília)"
@@ -248,7 +246,6 @@ def update_graph(n):
         )
         return fig, "Carregando...", {'color': '#888', 'textAlign': 'center', 'fontSize': '32px'}, hora_str, status_msg, status_style
     
-    # Gráfico
     score_atual = df_final['RASTRO_AZUL'].iloc[-1]
     cor_score = "#00ff00" if score_atual > 0 else "#ff0000"
     
@@ -265,7 +262,12 @@ def update_graph(n):
         height=600,
         margin=dict(l=5, r=40, t=10, b=20),
         yaxis=dict(gridcolor='#222', side="right", tickfont=dict(size=12), autorange=True),
-        xaxis=dict(gridcolor='#222', tickfont=dict(size=11)),
+        xaxis=dict(
+            gridcolor='#222',
+            tickfont=dict(size=11),
+            tickformat='%H:%M',  # Mostra só hora:minuto
+            title='Horário (Brasília UTC-3)'
+        ),
         showlegend=False,
         dragmode=False
     )
@@ -277,7 +279,6 @@ def update_graph(n):
 
 if __name__ == '__main__':
     app.run_server(debug=False, host='0.0.0.0', port=8050)
-
 
 
 
