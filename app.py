@@ -8,13 +8,15 @@ from datetime import datetime, timedelta, timezone
 import requests
 import warnings
 import time
+import os
+import threading
 
 warnings.filterwarnings("ignore")
 
-# CONFIGURAÇÃO - COLE SUA CHAVE AQUI
-ALPHA_VANTAGE_API_KEY = "JBIJLOP76X2DOLBQ"  # ← SUBSTITUA
+# CONFIGURAÇÃO
+ALPHA_VANTAGE_API_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "JBIJLOP76X2DOLBQ")
 
-# CACHE GLOBAL
+# CACHE
 CACHE = {
     'df': None,
     'ultimo_sucesso': None,
@@ -88,19 +90,20 @@ app.layout = html.Div([
 })
 
 def ajustar_horario_brasilia(df):
-    """Converte índice UTC para horário de Brasília (UTC-3)"""
     if df is not None and not df.empty:
-        # Subtrai 3 horas do índice
         df.index = df.index - timedelta(hours=3)
     return df
 
 def fetch_alpha_vantage():
     global CACHE
     
+    if not ALPHA_VANTAGE_API_KEY or ALPHA_VANTAGE_API_KEY == "JBIJLOP76X2DOLBQ":
+        return None, "Chave Alpha Vantage não configurada"
+    
     hoje = datetime.now(timezone.utc).date()
     if CACHE['ultima_req_alpha'] and CACHE['ultima_req_alpha'].date() == hoje:
         if CACHE['alpha_count'] >= 25:
-            return None, "Limite Alpha Vantage atingido (25/dia)"
+            return None, "Limite Alpha Vantage atingido"
     else:
         CACHE['alpha_count'] = 0
         CACHE['ultima_req_alpha'] = datetime.now(timezone.utc)
@@ -111,7 +114,7 @@ def fetch_alpha_vantage():
         for nome, symbol in TICKERS_ALPHA.items():
             url = f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={symbol}&interval=5min&apikey={ALPHA_VANTAGE_API_KEY}&outputsize=compact"
             
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=15)
             data = response.json()
             
             if "Time Series (5min)" in data:
@@ -133,10 +136,10 @@ def fetch_alpha_vantage():
                     data_frames[nome] = df['Variacao']
                 
                 CACHE['alpha_count'] += 1
-                time.sleep(0.5)
+                time.sleep(1)
             
             elif "Note" in data:
-                return None, f"Limite API atingido: {data['Note']}"
+                return None, f"Limite API: {data['Note']}"
             elif "Information" in data:
                 return None, f"Erro API: {data['Information']}"
                 
@@ -146,18 +149,18 @@ def fetch_alpha_vantage():
                 df_final = ajustar_horario_brasilia(df_final)
                 return process_data(df_final), "ALPHA VANTAGE"
         
-        return None, "Dados insuficientes Alpha Vantage"
+        return None, "Dados insuficientes"
         
     except Exception as e:
-        return None, f"Erro Alpha Vantage: {str(e)}"
+        return None, f"Erro: {str(e)}"
 
 def fetch_yahoo():
     data_frames = {}
     
     try:
         for nome, ticker in TICKERS_YAHOO.items():
-            time.sleep(0.3)
-            df = yf.download(ticker, period='1d', interval='5m', progress=False)
+            time.sleep(0.5)
+            df = yf.download(ticker, period='1d', interval='5m', progress=False, timeout=10)
             
             if not df.empty and len(df) > 0:
                 abertura = df['Open'].iloc[0]
@@ -167,7 +170,6 @@ def fetch_yahoo():
         if len(data_frames) >= 4:
             df_final = pd.DataFrame(data_frames).dropna()
             if not df_final.empty:
-                # 🕐 CONVERTE PARA HORÁRIO DE BRASÍLIA
                 df_final = ajustar_horario_brasilia(df_final)
                 return process_data(df_final), "YAHOO FINANCE"
         
@@ -195,7 +197,6 @@ def fetch_data():
         return df, f"ONLINE • {fonte}", "#00ff00"
     
     if not CACHE['yahoo_falhou']:
-        print("Yahoo falhou, tentando Alpha Vantage...")
         CACHE['yahoo_falhou'] = True
     
     df, fonte = fetch_alpha_vantage()
@@ -207,9 +208,9 @@ def fetch_data():
     
     if CACHE['df'] is not None:
         minutos = (datetime.now(timezone.utc) - CACHE['ultimo_sucesso']).seconds // 60
-        return CACHE['df'], f"OFFLINE • Cache ({minutos}min) • Alpha usada: {CACHE['alpha_count']}/25", "#ffaa00"
+        return CACHE['df'], f"OFFLINE • Cache ({minutos}min)", "#ffaa00"
     
-    return None, "SEM DADOS • Verifique conexão", "#ff0000"
+    return None, "SEM DADOS", "#ff0000"
 
 @app.callback(
     [Output('grafico-principal', 'figure'),
@@ -237,14 +238,14 @@ def update_graph(n):
             plot_bgcolor='black',
             height=600,
             annotations=[{
-                'text': 'Aguardando dados do mercado...',
+                'text': 'Iniciando... Aguardando dados',
                 'xref': 'paper',
                 'yref': 'paper',
                 'showarrow': False,
                 'font': {'size': 20, 'color': '#666'}
             }]
         )
-        return fig, "Carregando...", {'color': '#888', 'textAlign': 'center', 'fontSize': '32px'}, hora_str, status_msg, status_style
+        return fig, "Iniciando...", {'color': '#888', 'textAlign': 'center', 'fontSize': '32px'}, hora_str, status_msg, status_style
     
     score_atual = df_final['RASTRO_AZUL'].iloc[-1]
     cor_score = "#00ff00" if score_atual > 0 else "#ff0000"
@@ -265,7 +266,7 @@ def update_graph(n):
         xaxis=dict(
             gridcolor='#222',
             tickfont=dict(size=11),
-            tickformat='%H:%M',  # Mostra só hora:minuto
+            tickformat='%H:%M',
             title='Horário (Brasília UTC-3)'
         ),
         showlegend=False,
@@ -279,9 +280,6 @@ def update_graph(n):
 
 if __name__ == '__main__':
     app.run_server(debug=False, host='0.0.0.0', port=8050)
-
-
-
 
 
 
